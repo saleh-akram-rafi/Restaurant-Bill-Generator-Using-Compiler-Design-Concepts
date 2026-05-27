@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RestroDSL v2.0 — Interactive Compiler Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0e17;
+    --surface:   #111827;
+    --surface2:  #1a2332;
+    --border:    #1e2d42;
+    --border2:   #2a3f5a;
+    --accent:    #00d4ff;
+    --accent2:   #7c3aed;
+    --green:     #10b981;
+    --red:       #ef4444;
+    --yellow:    #f59e0b;
+    --orange:    #f97316;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --dim:       #334155;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Sora', sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;}
+
+  /* ── grid noise bg ── */
+  body::before{
+    content:'';position:fixed;inset:0;
+    background-image:
+      linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
+    background-size:40px 40px;
+    pointer-events:none;z-index:0;
+  }
+
+  /* ── header ── */
+  .header{
+    position:relative;z-index:10;
+    padding:20px 32px;
+    display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--border);
+    background:rgba(10,14,23,.9);backdrop-filter:blur(12px);
+  }
+  .logo{display:flex;align-items:center;gap:12px;}
+  .logo-icon{
+    width:36px;height:36px;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:700;color:#fff;font-family:var(--mono);
+  }
+  .logo-text{font-size:18px;font-weight:700;letter-spacing:-.5px;}
+  .logo-version{font-size:11px;color:var(--accent);font-family:var(--mono);
+    background:rgba(0,212,255,.1);padding:2px 8px;border-radius:20px;border:1px solid rgba(0,212,255,.2);}
+  .header-right{display:flex;gap:8px;align-items:center;}
+  .badge{font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:20px;
+    border:1px solid var(--border2);color:var(--muted);}
+
+  /* ── layout ── */
+  .app{display:grid;grid-template-columns:280px 1fr 340px;height:calc(100vh - 65px);position:relative;z-index:1;}
+
+  /* ── sidebar ── */
+  .sidebar{
+    border-right:1px solid var(--border);
+    overflow-y:auto;padding:16px 0;
+    background:rgba(17,24,39,.6);
+  }
+  .sidebar-section{margin-bottom:4px;}
+  .sidebar-label{
+    font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);padding:8px 16px 4px;
+  }
+  .menu-item{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 16px;cursor:pointer;
+    font-size:13px;color:var(--muted);
+    transition:all .15s;border-left:2px solid transparent;
+  }
+  .menu-item:hover{background:rgba(0,212,255,.05);color:var(--text);}
+  .menu-item.active{
+    background:rgba(0,212,255,.08);color:var(--accent);
+    border-left-color:var(--accent);
+  }
+  .menu-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .menu-num{font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:auto;}
+
+  /* ── main terminal area ── */
+  .main{display:flex;flex-direction:column;overflow:hidden;}
+  .tab-bar{
+    display:flex;align-items:center;gap:0;
+    border-bottom:1px solid var(--border);
+    background:rgba(17,24,39,.8);padding:0 16px;
+    overflow-x:auto;flex-shrink:0;
+  }
+  .tab{
+    padding:10px 16px;font-size:12px;cursor:pointer;
+    color:var(--muted);border-bottom:2px solid transparent;
+    font-family:var(--mono);white-space:nowrap;transition:all .15s;
+  }
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  /* ── terminal ── */
+  .terminal-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:16px;}
+  .terminal{
+    flex:1;background:#0d1117;border-radius:10px;
+    border:1px solid var(--border);overflow:hidden;
+    display:flex;flex-direction:column;
+    box-shadow:0 0 40px rgba(0,212,255,.04);
+  }
+  .terminal-header{
+    display:flex;align-items:center;gap:8px;
+    padding:10px 14px;background:#161b22;
+    border-bottom:1px solid var(--border);
+  }
+  .dot{width:12px;height:12px;border-radius:50%;}
+  .dot-r{background:#ff5f57;}
+  .dot-y{background:#febc2e;}
+  .dot-g{background:#28c840;}
+  .term-title{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;}
+  .term-body{flex:1;overflow-y:auto;padding:16px;font-family:var(--mono);font-size:13px;line-height:1.7;}
+
+  /* terminal line styles */
+  .t-prompt{color:var(--accent);}
+  .t-input{color:var(--text);}
+  .t-phase{font-size:11px;margin-left:4px;}
+  .t-lexer{color:#22d3ee;}
+  .t-parser{color:#a78bfa;}
+  .t-semantic{color:#34d399;}
+  .t-ir{color:var(--yellow);}
+  .t-ok{color:var(--green);}
+  .t-err{color:var(--red);}
+  .t-bill{color:var(--yellow);}
+  .t-comment{color:var(--muted);}
+  .t-key{color:#ff79c6;}
+  .t-id{color:#50fa7b;}
+  .t-num{color:#bd93f9;}
+  .t-sep{color:var(--dim);}
+
+  /* ── input row ── */
+  .input-row{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-top:1px solid var(--border);
+    background:#0d1117;
+  }
+  .prompt-label{font-family:var(--mono);font-size:13px;color:var(--accent);flex-shrink:0;}
+  .cmd-input{
+    flex:1;background:transparent;border:none;outline:none;
+    font-family:var(--mono);font-size:13px;color:var(--text);caret-color:var(--accent);
+  }
+  .cmd-input::placeholder{color:var(--dim);}
+  .run-btn{
+    background:var(--accent);color:#0a0e17;border:none;
+    padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;
+    font-family:var(--mono);cursor:pointer;transition:all .15s;flex-shrink:0;
+  }
+  .run-btn:hover{background:#33ddff;transform:scale(1.03);}
+
+  /* ── right panel ── */
+  .panel{
+    border-left:1px solid var(--border);
+    overflow-y:auto;padding:16px;
+    background:rgba(17,24,39,.6);
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .panel-card{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:10px;overflow:hidden;
+  }
+  .panel-card-hd{
+    padding:10px 14px;border-bottom:1px solid var(--border);
+    font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .panel-card-body{padding:12px 14px;}
+
+  /* pipeline visual */
+  .pipe-step{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 10px;border-radius:7px;margin-bottom:4px;
+    font-size:12px;transition:all .2s;border:1px solid transparent;
+    cursor:default;
+  }
+  .pipe-step.idle{color:var(--muted);}
+  .pipe-step.active{
+    background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.2);
+    color:var(--accent);
+    box-shadow:0 0 12px rgba(0,212,255,.08);
+  }
+  .pipe-step.done{background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.2);color:var(--green);}
+  .pipe-step.error{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2);color:var(--red);}
+  .pipe-icon{font-size:15px;width:22px;text-align:center;}
+  .pipe-label{flex:1;font-family:var(--mono);}
+  .pipe-status{font-size:10px;font-family:var(--mono);}
+  .pipe-arrow{text-align:center;font-size:10px;color:var(--dim);margin:0 0 4px 16px;}
+
+  /* token chips */
+  .token-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .token-chip{
+    padding:3px 10px;border-radius:20px;font-size:11px;
+    font-family:var(--mono);font-weight:600;
+  }
+  .chip-kw{background:rgba(255,121,198,.15);color:#ff79c6;border:1px solid rgba(255,121,198,.3);}
+  .chip-id{background:rgba(80,250,123,.12);color:#50fa7b;border:1px solid rgba(80,250,123,.25);}
+  .chip-num{background:rgba(189,147,249,.15);color:#bd93f9;border:1px solid rgba(189,147,249,.3);}
+  .chip-unk{background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);}
+
+  /* menu table */
+  .menu-tbl{width:100%;font-size:12px;border-collapse:collapse;}
+  .menu-tbl td{padding:5px 6px;border-bottom:1px solid var(--border);}
+  .menu-tbl tr:last-child td{border-bottom:none;}
+  .menu-tbl .name{color:var(--text);}
+  .menu-tbl .price{color:var(--yellow);font-family:var(--mono);text-align:right;}
+  .menu-tbl .avl{text-align:center;}
+
+  /* order table */
+  .order-tbl{width:100%;font-size:12px;border-collapse:collapse;}
+  .order-tbl td{padding:5px 6px;border-bottom:1px solid var(--border);}
+  .order-tbl tr:last-child td{border-bottom:none;}
+  .order-tbl .ot-name{color:var(--text);}
+  .order-tbl .ot-qty{color:var(--accent);font-family:var(--mono);text-align:center;}
+  .order-tbl .ot-sub{color:var(--yellow);font-family:var(--mono);text-align:right;}
+
+  .bill-total-row{
+    display:flex;justify-content:space-between;
+    padding:5px 0;font-size:12px;font-family:var(--mono);
+  }
+  .bill-total-row.grand{
+    border-top:1px solid var(--border2);margin-top:6px;padding-top:10px;
+    font-size:14px;font-weight:700;color:var(--accent);
+  }
+  .bill-label{color:var(--muted);}
+  .bill-val{color:var(--text);}
+  .bill-disc{color:var(--green);}
+
+  /* stat chips */
+  .stats-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .stat-chip{
+    flex:1;min-width:60px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:8px;
+    padding:8px 10px;text-align:center;
+  }
+  .stat-num{font-size:20px;font-weight:700;font-family:var(--mono);}
+  .stat-lbl{font-size:10px;color:var(--muted);margin-top:2px;}
+
+  /* quick commands */
+  .quick-cmds{display:flex;flex-wrap:wrap;gap:6px;}
+  .qcmd{
+    font-family:var(--mono);font-size:11px;
+    padding:4px 10px;border-radius:6px;cursor:pointer;
+    background:var(--surface2);border:1px solid var(--border2);
+    color:var(--text);transition:all .15s;
+  }
+  .qcmd:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.07);}
+
+  /* scrollbar */
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+    background:var(--surface);border:1px solid var(--accent);border-radius:8px;
+    padding:10px 20px;font-size:13px;font-family:var(--mono);color:var(--accent);
+    transition:transform .3s;z-index:999;pointer-events:none;
+    box-shadow:0 0 20px rgba(0,212,255,.2);
+  }
+  .toast.show{transform:translateX(-50%) translateY(0);}
+
+  /* theory tab */
+  .theory-box{
+    background:#0d1117;border-radius:8px;padding:14px;
+    font-family:var(--mono);font-size:12px;line-height:1.9;
+    border:1px solid var(--border);
+  }
+  .th-head{color:var(--accent);font-weight:700;margin-bottom:8px;}
+  .th-rule{color:#a78bfa;}
+  .th-term{color:#50fa7b;}
+  .th-set{color:var(--yellow);}
+  .th-comment{color:var(--muted);}
+
+  /* help tab */
+  .help-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .help-table td{padding:7px 10px;border-bottom:1px solid var(--border);}
+  .help-table tr:last-child td{border-bottom:none;}
+  .help-cmd{font-family:var(--mono);color:var(--accent);}
+  .help-desc{color:var(--muted);}
+
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .cursor{display:inline-block;width:8px;height:14px;background:var(--accent);
+    vertical-align:middle;animation:blink 1s infinite;margin-left:2px;}
+  @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);
+    display:inline-block;animation:pulseDot 1.5s infinite;}
+
+  .fade-in{animation:fadeIn .3s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">R</div>
+    <span class="logo-text">RestroDSL</span>
+    <span class="logo-version">v2.0.0</span>
+  </div>
+  <div class="header-right">
+    <span class="badge"><span class="live-dot"></span> LIVE</span>
+    <span class="badge">CSE314 · Compiler Design</span>
+    <span class="badge">DIU · Group 1</span>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      <div class="menu-item active" onclick="setTab('terminal','nav-terminal')">
+        <div class="menu-dot" style="background:#00d4ff"></div>
+        Terminal
+        <span class="menu-num">01</span>
+      </div>
+      <div class="menu-item" onclick="setTab('theory','nav-theory')">
+        <div class="menu-dot" style="background:#7c3aed"></div>
+        Theory Engine
+        <span class="menu-num">02</span>
+      </div>
+      <div class="menu-item" onclick="setTab('menu','nav-menu')">
+        <div class="menu-dot" style="background:#10b981"></div>
+        Menu / Symbol Table
+        <span class="menu-num">03</span>
+      </div>
+      <div class="menu-item" onclick="setTab('help','nav-help')">
+        <div class="menu-dot" style="background:#f59e0b"></div>
+        Help & Commands
+        <span class="menu-num">04</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="margin-top:16px;">
+      <div class="sidebar-label">Pipeline Phases</div>
+      <div class="menu-item" id="nav-phase0">
+        <div class="menu-dot" style="background:#64748b"></div>
+        Phase 0 · Symbol Table
+      </div>
+      <div class="menu-item" id="nav-phase1">
+        <div class="menu-dot" style="background:#22d3ee"></div>
+        Phase 1 · Lexer
+      </div>
+      <div class="menu-item" id="nav-phase2">
+        <div class="menu-dot" style="background:#a78bfa"></div>
+        Phase 2 · Parser
+      </div>
+      <div class="menu-item" id="nav-phase3">
+        <div class="menu-dot" style="background:#34d399"></div>
+        Phase 3 · Semantic
+      </div>
+      <div class="menu-item" id="nav-phase4">
+        <div class="menu-dot" style="background:#f59e0b"></div>
+        Phase 4 · IR
+      </div>
+      <div class="menu-item" id="nav-phase5">
+        <div class="menu-dot" style="background:#f97316"></div>
+        Phase 5 · CodeGen
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="margin-top:16px;">
+      <div class="sidebar-label">Team</div>
+      <div class="menu-item"><div class="menu-dot" style="background:#f97316"></div>Saleh Akram · Lexer</div>
+      <div class="menu-item"><div class="menu-dot" style="background:#a78bfa"></div>Kousik Ahammed · Parser</div>
+      <div class="menu-item"><div class="menu-dot" style="background:#34d399"></div>Hasib Ul Islam · Semantic</div>
+      <div class="menu-item"><div class="menu-dot" style="background:#f59e0b"></div>Rouf Tanvir · IR/Theory</div>
+      <div class="menu-item"><div class="menu-dot" style="background:#ef4444"></div>Sifat Ullah · CodeGen/UI</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="tab-bar">
+      <div class="tab active" id="tab-terminal" onclick="switchMainTab('terminal')">⬛ Terminal</div>
+      <div class="tab" id="tab-theory" onclick="switchMainTab('theory')">📐 Theory</div>
+      <div class="tab" id="tab-menu" onclick="switchMainTab('menu')">📋 Menu</div>
+      <div class="tab" id="tab-help" onclick="switchMainTab('help')">❓ Help</div>
+    </div>
+
+    <!-- TERMINAL TAB -->
+    <div id="view-terminal" class="terminal-wrap">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+          <span class="term-title">restrodsl — bash — 80×24</span>
+        </div>
+        <div class="term-body" id="termBody">
+          <div class="t-comment">╔══════════════════════════════════════════════════════╗</div>
+          <div class="t-bill">║         ★  RestroDSL v2.0.0 — CSE314            ★  ║</div>
+          <div class="t-comment">║     Restaurant Bill Generator · Compiler Design     ║</div>
+          <div class="t-comment">╚══════════════════════════════════════════════════════╝</div>
+          <div>&nbsp;</div>
+          <div class="t-ok">✓ Symbol table loaded — 14 items ready.</div>
+          <div class="t-comment">  Type commands below. Try: order burger 2</div>
+          <div>&nbsp;</div>
+        </div>
+        <div class="input-row">
+          <span class="prompt-label">restro&gt;</span>
+          <input class="cmd-input" id="cmdInput" placeholder="order &lt;item&gt; &lt;qty&gt;  |  cancel &lt;item&gt; &lt;qty&gt;  |  show  |  clear" autocomplete="off" spellcheck="false"/>
+          <button class="run-btn" onclick="runCommand()">RUN ⏎</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- THEORY TAB -->
+    <div id="view-theory" class="terminal-wrap" style="display:none;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="qcmd" onclick="showTheory('cfg')">CFG Grammar</button>
+        <button class="qcmd" onclick="showTheory('first')">FIRST/FOLLOW</button>
+        <button class="qcmd" onclick="showTheory('nfa')">NFA → DFA</button>
+        <button class="qcmd" onclick="showTheory('lr0')">LR(0) Table</button>
+        <button class="qcmd" onclick="showTheory('ll1')">LL(1) Table</button>
+        <button class="qcmd" onclick="showTheory('ir')">IR Walkthrough</button>
+      </div>
+      <div class="theory-box" id="theoryBox">
+        <div class="th-head"># Select a theory topic above</div>
+        <div class="th-comment">Click any button to display the formal compiler theory behind each phase.</div>
+      </div>
+    </div>
+
+    <!-- MENU TAB -->
+    <div id="view-menu" class="terminal-wrap" style="display:none;">
+      <div class="panel-card" style="background:#0d1117;">
+        <div class="panel-card-hd" style="font-size:13px;font-weight:700;color:var(--text);">
+          Restaurant Menu — Symbol Table
+          <span style="font-size:11px;color:var(--muted);font-family:var(--mono);">14 items loaded</span>
+        </div>
+        <div class="panel-card-body">
+          <table class="menu-tbl" id="fullMenuTable">
+            <tr style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+              <td>Item</td><td style="text-align:right">Price (Tk)</td><td style="text-align:center">Available</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- HELP TAB -->
+    <div id="view-help" class="terminal-wrap" style="display:none;">
+      <div class="panel-card" style="background:#0d1117;">
+        <div class="panel-card-hd" style="font-size:13px;font-weight:700;color:var(--text);">Commands Reference</div>
+        <div class="panel-card-body">
+          <table class="help-table">
+            <tr><td class="help-cmd">order &lt;item&gt; &lt;qty&gt;</td><td class="help-desc">Add items to the order. e.g. order burger 2</td></tr>
+            <tr><td class="help-cmd">cancel &lt;item&gt; &lt;qty&gt;</td><td class="help-desc">Remove items from the order. e.g. cancel burger 1</td></tr>
+            <tr><td class="help-cmd">show</td><td class="help-desc">Preview the current order list (IR view)</td></tr>
+            <tr><td class="help-cmd">clear</td><td class="help-desc">Reset all orders in this session</td></tr>
+            <tr><td class="help-cmd">bill</td><td class="help-desc">Generate the final bill with VAT & discount</td></tr>
+            <tr><td class="help-cmd">menu</td><td class="help-desc">Display the full restaurant menu</td></tr>
+            <tr><td class="help-cmd">debug on / off</td><td class="help-desc">Toggle verbose phase-by-phase debug output</td></tr>
+            <tr><td class="help-cmd">help</td><td class="help-desc">Show this commands reference</td></tr>
+          </table>
+          <div style="margin-top:16px;padding:12px;background:rgba(0,212,255,.05);border-radius:8px;border:1px solid rgba(0,212,255,.15);">
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:8px;">Grammar Rule (CFG):</div>
+            <div style="font-family:var(--mono);font-size:12px;line-height:2;color:var(--text);">
+              S &nbsp;→ &nbsp;<span style="color:#ff79c6">order</span> &nbsp;Item &nbsp;Qty<br>
+              S &nbsp;→ &nbsp;<span style="color:#ff79c6">cancel</span> Item &nbsp;Qty<br>
+              S &nbsp;→ &nbsp;<span style="color:#ff79c6">show</span> &nbsp;| &nbsp;<span style="color:#ff79c6">clear</span><br>
+              Item → <span style="color:#50fa7b">identifier</span> &nbsp;(letters only)<br>
+              Qty &nbsp;→ <span style="color:#bd93f9">number</span> &nbsp;&nbsp;&nbsp;(digits only)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Right panel -->
+  <aside class="panel">
+
+    <!-- Pipeline -->
+    <div class="panel-card">
+      <div class="panel-card-hd">
+        <span>Compiler Pipeline</span>
+        <span id="pipelineStatus" style="font-family:var(--mono);font-size:11px;color:var(--muted)">idle</span>
+      </div>
+      <div class="panel-card-body" id="pipelinePanel">
+        <div class="pipe-step idle" id="ps0"><div class="pipe-icon">⚙️</div><div class="pipe-label">Symbol Table</div><div class="pipe-status" id="ps0s">—</div></div>
+        <div class="pipe-arrow">↓</div>
+        <div class="pipe-step idle" id="ps1"><div class="pipe-icon">🔤</div><div class="pipe-label">Lexer</div><div class="pipe-status" id="ps1s">—</div></div>
+        <div class="pipe-arrow">↓</div>
+        <div class="pipe-step idle" id="ps2"><div class="pipe-icon">📝</div><div class="pipe-label">Parser</div><div class="pipe-status" id="ps2s">—</div></div>
+        <div class="pipe-arrow">↓</div>
+        <div class="pipe-step idle" id="ps3"><div class="pipe-icon">🔍</div><div class="pipe-label">Semantic</div><div class="pipe-status" id="ps3s">—</div></div>
+        <div class="pipe-arrow">↓</div>
+        <div class="pipe-step idle" id="ps4"><div class="pipe-icon">💾</div><div class="pipe-label">IR Update</div><div class="pipe-status" id="ps4s">—</div></div>
+        <div class="pipe-arrow">↓</div>
+        <div class="pipe-step idle" id="ps5"><div class="pipe-icon">🧾</div><div class="pipe-label">Code Gen</div><div class="pipe-status" id="ps5s">—</div></div>
+      </div>
+    </div>
+
+    <!-- Tokens -->
+    <div class="panel-card">
+      <div class="panel-card-hd"><span>Token Stream</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="tokenCount">0 tokens</span></div>
+      <div class="panel-card-body">
+        <div class="token-row" id="tokenDisplay">
+          <span style="font-size:12px;color:var(--dim);font-family:var(--mono)">No tokens yet</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders IR -->
+    <div class="panel-card">
+      <div class="panel-card-hd"><span>Order List (IR)</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="orderCount">0 items</span></div>
+      <div class="panel-card-body">
+        <table class="order-tbl" id="orderTable">
+          <tr style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+            <td>Item</td><td style="text-align:center">Qty</td><td style="text-align:right">Total</td>
+          </tr>
+        </table>
+        <div id="emptyOrders" style="font-size:12px;color:var(--dim);font-family:var(--mono);padding:6px 0;">No orders yet</div>
+      </div>
+    </div>
+
+    <!-- Bill Summary -->
+    <div class="panel-card">
+      <div class="panel-card-hd"><span>Bill Summary</span></div>
+      <div class="panel-card-body" id="billPanel">
+        <div style="font-size:12px;color:var(--dim);font-family:var(--mono)">Type 'bill' or add orders to see summary</div>
+      </div>
+    </div>
+
+    <!-- Session Stats -->
+    <div class="panel-card">
+      <div class="panel-card-hd"><span>Session Stats</span></div>
+      <div class="panel-card-body">
+        <div class="stats-row">
+          <div class="stat-chip">
+            <div class="stat-num" id="statOrders" style="color:var(--accent)">0</div>
+            <div class="stat-lbl">Orders</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-num" id="statErrors" style="color:var(--red)">0</div>
+            <div class="stat-lbl">Errors</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-num" id="statLines" style="color:var(--green)">0</div>
+            <div class="stat-lbl">Lines</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick commands -->
+    <div class="panel-card">
+      <div class="panel-card-hd"><span>Quick Commands</span></div>
+      <div class="panel-card-body">
+        <div class="quick-cmds">
+          <div class="qcmd" onclick="quickCmd('order burger 2')">order burger 2</div>
+          <div class="qcmd" onclick="quickCmd('order pizza 1')">order pizza 1</div>
+          <div class="qcmd" onclick="quickCmd('order coffee 3')">order coffee 3</div>
+          <div class="qcmd" onclick="quickCmd('order steak 2')">order steak 2</div>
+          <div class="qcmd" onclick="quickCmd('show')">show</div>
+          <div class="qcmd" onclick="quickCmd('bill')">bill</div>
+          <div class="qcmd" onclick="quickCmd('cancel burger 1')">cancel burger 1</div>
+          <div class="qcmd" onclick="quickCmd('clear')">clear</div>
+          <div class="qcmd" onclick="quickCmd('order hotdog 1')">order hotdog 1 ❌</div>
+          <div class="qcmd" onclick="quickCmd('2 burger')">2 burger ❌</div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════
+   DATA
+══════════════════════════════════════════ */
+const MENU = [
+  {name:'Burger',   price:100, avl:true},
+  {name:'Pizza',    price:300, avl:true},
+  {name:'Coffee',   price:50,  avl:true},
+  {name:'Pasta',    price:250, avl:true},
+  {name:'Salad',    price:120, avl:true},
+  {name:'Sandwich', price:150, avl:true},
+  {name:'Juice',    price:60,  avl:true},
+  {name:'Icecream', price:80,  avl:true},
+  {name:'Soup',     price:90,  avl:true},
+  {name:'Steak',    price:450, avl:true},
+  {name:'Noodles',  price:130, avl:true},
+  {name:'Fries',    price:70,  avl:true},
+  {name:'Coke',     price:40,  avl:true},
+  {name:'Water',    price:20,  avl:true},
+];
+const KEYWORDS = ['order','cancel','show','clear','done','help','menu','bill','debug'];
+
+let orders = [];
+let errorCount = 0;
+let lineCount  = 0;
+let debugMode  = true;
+
+/* ══════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════ */
+function menuLookup(name){
+  return MENU.find(m=>m.name.toLowerCase()===name.toLowerCase() && m.avl) || null;
+}
+function isAlpha(s){ return /^[a-zA-Z]+$/.test(s); }
+function isDigit(s){ return /^[0-9]+$/.test(s); }
+function classify(w){
+  if(KEYWORDS.includes(w.toLowerCase())) return 'keyword';
+  if(isAlpha(w)) return 'identifier';
+  if(isDigit(w)) return 'number';
+  return 'unknown';
+}
+function tok(type,val){ return {type,val}; }
+
+/* ══════════════════════════════════════════
+   TERMINAL PRINT
+══════════════════════════════════════════ */
+const tb = ()=>document.getElementById('termBody');
+function print(html){
+  const d = document.createElement('div');
+  d.className='fade-in';
+  d.innerHTML = html;
+  tb().appendChild(d);
+  tb().scrollTop = tb().scrollHeight;
+}
+function printLine(){ print('<div style="height:4px"></div>'); }
+
+/* ══════════════════════════════════════════
+   PIPELINE VISUAL
+══════════════════════════════════════════ */
+function resetPipeline(){
+  [0,1,2,3,4,5].forEach(i=>{
+    const el=document.getElementById('ps'+i);
+    el.className='pipe-step idle';
+    document.getElementById('ps'+i+'s').textContent='—';
+  });
+  document.getElementById('pipelineStatus').textContent='idle';
+}
+function setPipeStep(i, state, txt){
+  const el=document.getElementById('ps'+i);
+  el.className='pipe-step '+state;
+  document.getElementById('ps'+i+'s').textContent=txt;
+  if(state==='active') document.getElementById('pipelineStatus').textContent='running';
+}
+async function animatePipeline(steps){
+  for(const s of steps){
+    setPipeStep(s.i,'active','...');
+    await sleep(120);
+    setPipeStep(s.i, s.state, s.txt);
+    await sleep(60);
+  }
+  const anyErr = steps.some(s=>s.state==='error');
+  document.getElementById('pipelineStatus').textContent = anyErr ? 'error' : 'ok';
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* ══════════════════════════════════════════
+   TOKEN DISPLAY
+══════════════════════════════════════════ */
+function showTokens(tokens){
+  const div = document.getElementById('tokenDisplay');
+  if(!tokens.length){ div.innerHTML='<span style="font-size:12px;color:var(--dim);font-family:var(--mono)">No tokens</span>'; return; }
+  div.innerHTML = tokens.map(t=>{
+    const cls = {keyword:'chip-kw',identifier:'chip-id',number:'chip-num',unknown:'chip-unk'}[t.type]||'chip-unk';
+    return `<span class="token-chip ${cls}">${t.val}<br><span style="font-size:9px;opacity:.7">${t.type.toUpperCase()}</span></span>`;
+  }).join('');
+  document.getElementById('tokenCount').textContent=tokens.length+' token'+(tokens.length!==1?'s':'');
+}
+
+/* ══════════════════════════════════════════
+   ORDER TABLE
+══════════════════════════════════════════ */
+function refreshOrders(){
+  const tbl = document.getElementById('orderTable');
+  const empty = document.getElementById('emptyOrders');
+  const rows = tbl.querySelectorAll('tr.order-row');
+  rows.forEach(r=>r.remove());
+  if(orders.length===0){ empty.style.display='block'; }
+  else {
+    empty.style.display='none';
+    orders.forEach(o=>{
+      const tr=document.createElement('tr');
+      tr.className='order-row';
+      tr.innerHTML=`<td class="ot-name">${o.name}</td><td class="ot-qty">${o.qty}</td><td class="ot-sub">৳${o.subtotal.toFixed(2)}</td>`;
+      tbl.appendChild(tr);
+    });
+  }
+  document.getElementById('orderCount').textContent=orders.length+' item'+(orders.length!==1?'s':'');
+  document.getElementById('statOrders').textContent=orders.length;
+  refreshBillPanel();
+}
+
+/* ══════════════════════════════════════════
+   BILL PANEL
+══════════════════════════════════════════ */
+function refreshBillPanel(){
+  const panel=document.getElementById('billPanel');
+  if(orders.length===0){
+    panel.innerHTML='<div style="font-size:12px;color:var(--dim);font-family:var(--mono)">No orders yet</div>';
+    return;
+  }
+  const sub = orders.reduce((a,o)=>a+o.subtotal,0);
+  const disc = sub>=1000 ? sub*0.10 : 0;
+  const after = sub-disc;
+  const tax = after*0.05;
+  const grand = after+tax;
+  panel.innerHTML=`
+    <div class="bill-total-row"><span class="bill-label">Subtotal</span><span class="bill-val">৳${sub.toFixed(2)}</span></div>
+    ${disc>0?`<div class="bill-total-row"><span class="bill-label">Discount (10%)</span><span class="bill-disc">−৳${disc.toFixed(2)}</span></div>`:''}
+    <div class="bill-total-row"><span class="bill-label">VAT (5%)</span><span class="bill-val">৳${tax.toFixed(2)}</span></div>
+    <div class="bill-total-row grand"><span>Grand Total</span><span>৳${grand.toFixed(2)}</span></div>
+  `;
+}
+
+/* ══════════════════════════════════════════
+   COMMAND PROCESSOR
+══════════════════════════════════════════ */
+async function processCommand(raw){
+  const cmd = raw.trim();
+  if(!cmd || cmd.startsWith('#')) return;
+
+  lineCount++;
+  document.getElementById('statLines').textContent=lineCount;
+  print(`<span class="t-prompt">restro&gt;</span> <span class="t-input">${escHtml(cmd)}</span>`);
+
+  // split tokens
+  const words = cmd.split(/\s+/).filter(Boolean);
+  const tokens = words.map(w=>tok(classify(w),w));
+  showTokens(tokens);
+
+  const kw = words[0]?.toLowerCase();
+
+  /* ── BILL command ── */
+  if(kw==='bill'||kw==='generate'){
+    await animatePipeline([{i:0,state:'done',txt:'ok'},{i:5,state:'active',txt:'...'},{i:5,state:'done',txt:'ok'}]);
+    printBill(); return;
+  }
+  /* ── SHOW command ── */
+  if(kw==='show'){
+    await animatePipeline([{i:0,state:'done',txt:'ok'},{i:1,state:'done',txt:'ok'},{i:2,state:'done',txt:'ok'},{i:4,state:'done',txt:'preview'}]);
+    printShow(); return;
+  }
+  /* ── MENU command ── */
+  if(kw==='menu'){
+    printMenuInTerminal(); return;
+  }
+  /* ── CLEAR command ── */
+  if(kw==='clear'){
+    await animatePipeline([{i:0,state:'done',txt:'ok'},{i:1,state:'done',txt:'ok'},{i:2,state:'done',txt:'ok'},{i:4,state:'done',txt:'cleared'}]);
+    orders=[];
+    refreshOrders();
+    print(`<span class="t-ok">✓ Session cleared. All orders reset.</span>`);
+    return;
+  }
+  /* ── HELP command ── */
+  if(kw==='help'){ switchMainTab('help'); return; }
+  /* ── DEBUG toggle ── */
+  if(kw==='debug'){
+    debugMode = words[1]?.toLowerCase()!=='off';
+    print(`<span class="t-ok">✓ Debug mode: ${debugMode?'ON':'OFF'}</span>`);
+    return;
+  }
+
+  /* ════ FULL PIPELINE ════ */
+  resetPipeline();
+  setPipeStep(0,'done','ok');
+
+  /* ── PHASE 1: LEXER ── */
+  setPipeStep(1,'active','...');
+  await sleep(100);
+  if(debugMode){
+    print(`<span class="t-lexer t-phase">[LEXER] Input: "${escHtml(cmd)}"</span>`);
+    tokens.forEach((t,i)=>{
+      const colCls = {keyword:'t-key',identifier:'t-id',number:'t-num',unknown:'t-err'}[t.type];
+      print(`<span class="t-lexer t-phase">[LEXER] Token[${i}] <span class="${colCls}">${t.type.toUpperCase().padEnd(10)}</span> → "${escHtml(t.val)}"</span>`);
+    });
+  }
+
+  if(tokens.length===0){
+    setPipeStep(1,'error','empty'); errorCount++; document.getElementById('statErrors').textContent=errorCount; return;
+  }
+  setPipeStep(1,'done','ok');
+
+  /* ── PHASE 2: PARSER ── */
+  setPipeStep(2,'active','...');
+  await sleep(100);
+  let parseErr = null;
+  let cmdType = null;
+  let itemName = null;
+  let qty = 0;
+
+  if(tokens[0].type!=='keyword'){
+    parseErr='Must start with a keyword: order | cancel | show | clear';
+  } else if(kw==='order'||kw==='cancel'){
+    cmdType=kw;
+    if(!tokens[1]||tokens[1].type==='unknown') parseErr='Missing item name';
+    else if(tokens[1].type!=='identifier') parseErr='Item name must be letters only';
+    else if(!tokens[2]) parseErr='Missing quantity';
+    else if(tokens[2].type!=='number') parseErr='Quantity must be a whole number';
+    else if(tokens.length>3) parseErr='Too many tokens';
+    else { itemName=tokens[1].val; qty=parseInt(tokens[2].val); }
+  } else {
+    parseErr=`Unknown command: ${kw}`;
+  }
+
+  if(parseErr){
+    setPipeStep(2,'error','fail');
+    if(debugMode) print(`<span class="t-err t-phase">[PARSER] SYNTAX ERROR: ${parseErr}</span>`);
+    else print(`<span class="t-err">✗ Syntax error: ${parseErr}</span>`);
+    errorCount++; document.getElementById('statErrors').textContent=errorCount;
+    await animatePipeline([]);
+    return;
+  }
+
+  if(debugMode) print(`<span class="t-parser t-phase">[PARSER] Syntax OK → Command: ${cmdType.toUpperCase()}  item="${itemName}"  qty=${qty}</span>`);
+  setPipeStep(2,'done','ok');
+
+  /* ── PHASE 3: SEMANTIC ── */
+  setPipeStep(3,'active','...');
+  await sleep(100);
+  const menuItem = menuLookup(itemName);
+  let semErr = null;
+  let unitPrice = 0;
+
+  if(!menuItem){
+    semErr=`'${itemName}' is not on the menu. Type 'menu' to see available items.`;
+  } else if(qty<=0){
+    semErr='Quantity must be greater than 0.';
+  } else if(cmdType==='cancel'){
+    const existing = orders.find(o=>o.name.toLowerCase()===itemName.toLowerCase());
+    if(!existing) semErr=`'${itemName}' has not been ordered yet.`;
+    else if(qty>existing.qty) semErr=`Cannot cancel ${qty} × ${itemName} — only ${existing.qty} ordered.`;
+  }
+
+  if(semErr){
+    setPipeStep(3,'error','fail');
+    if(debugMode) print(`<span class="t-err t-phase">[SEMANTIC] ERROR: ${semErr}</span>`);
+    else print(`<span class="t-err">✗ Semantic error: ${semErr}</span>`);
+    errorCount++; document.getElementById('statErrors').textContent=errorCount;
+    return;
+  }
+  unitPrice = menuItem.price;
+  if(debugMode) print(`<span class="t-semantic t-phase">[SEMANTIC] OK → "${menuItem.name}"  price=${unitPrice.toFixed(2)}  qty=${qty}</span>`);
+  setPipeStep(3,'done','ok');
+
+  /* ── PHASE 4: IR ── */
+  setPipeStep(4,'active','...');
+  await sleep(100);
+  const displayName = menuItem.name;
+
+  if(cmdType==='order'){
+    const existing = orders.find(o=>o.name.toLowerCase()===displayName.toLowerCase());
+    if(existing){
+      existing.qty += qty;
+      existing.subtotal = existing.qty * existing.unitPrice;
+      if(debugMode) print(`<span class="t-ir t-phase">[IR] Merged → ${displayName} (total qty: ${existing.qty})</span>`);
+    } else {
+      orders.push({name:displayName, qty, unitPrice, subtotal:qty*unitPrice});
+      if(debugMode) print(`<span class="t-ir t-phase">[IR] Added → ${displayName} × ${qty} = ৳${(qty*unitPrice).toFixed(2)}</span>`);
+    }
+  } else if(cmdType==='cancel'){
+    const idx = orders.findIndex(o=>o.name.toLowerCase()===displayName.toLowerCase());
+    orders[idx].qty -= qty;
+    orders[idx].subtotal = orders[idx].qty * orders[idx].unitPrice;
+    if(orders[idx].qty<=0){
+      orders.splice(idx,1);
+      if(debugMode) print(`<span class="t-ir t-phase">[IR] Removed → ${displayName} (fully cancelled)</span>`);
+    } else {
+      if(debugMode) print(`<span class="t-ir t-phase">[IR] Reduced → ${displayName} × ${orders[idx].qty} remaining</span>`);
+    }
+  }
+
+  setPipeStep(4,'done','ok');
+  refreshOrders();
+
+  if(debugMode) print(`<span class="t-ok t-phase">[PIPELINE] ✓ Line ${lineCount} processed successfully</span>`);
+  else print(`<span class="t-ok">✓ ${cmdType==='order'?'Added':'Updated'}: ${displayName} × ${qty}</span>`);
+  printLine();
+}
+
+/* ══════════════════════════════════════════
+   BILL PRINTER
+══════════════════════════════════════════ */
+function printBill(){
+  if(orders.length===0){ print(`<span class="t-err">✗ No orders to bill.</span>`); return; }
+  const sub = orders.reduce((a,o)=>a+o.subtotal,0);
+  const disc = sub>=1000 ? sub*0.10 : 0;
+  const after = sub-disc;
+  const tax = after*0.05;
+  const grand = after+tax;
+  const now = new Date().toLocaleString('en-GB');
+
+  print(`<span class="t-sep">╔══════════════════════════════════════════════════╗</span>`);
+  print(`<span class="t-bill">║        ★   GRAND RESTAURANT   ★                ║</span>`);
+  print(`<span class="t-sep">╠══════════════════════════════════════════════════╣</span>`);
+  print(`<span class="t-sep">║  Date: ${now.padEnd(43)}║</span>`);
+  print(`<span class="t-sep">╠══════════════════════════════════════════════════╣</span>`);
+  print(`<span class="t-comment">║  ${'Item'.padEnd(16)} ${'Qty'.padStart(5)} ${'Unit'.padStart(9)} ${'Total'.padStart(11)}  ║</span>`);
+  print(`<span class="t-sep">╠══════════════════════════════════════════════════╣</span>`);
+  orders.forEach(o=>{
+    print(`<span class="t-input">║  ${o.name.padEnd(16)} ${String(o.qty).padStart(5)} ${String('৳'+o.unitPrice.toFixed(2)).padStart(9)} ${String('৳'+o.subtotal.toFixed(2)).padStart(11)}  ║</span>`);
+  });
+  print(`<span class="t-sep">╠══════════════════════════════════════════════════╣</span>`);
+  print(`<span class="t-input">║  ${'Subtotal (৳):'.padEnd(36)} ${String('৳'+sub.toFixed(2)).padStart(11)}  ║</span>`);
+  if(disc>0) print(`<span class="t-ok">║  ${'Discount 10% (৳):'.padEnd(36)} ${String('−৳'+disc.toFixed(2)).padStart(11)}  ║</span>`);
+  print(`<span class="t-input">║  ${'VAT 5% (৳):'.padEnd(36)} ${String('৳'+tax.toFixed(2)).padStart(11)}  ║</span>`);
+  print(`<span class="t-sep">╠══════════════════════════════════════════════════╣</span>`);
+  print(`<span class="t-bill">║  ${'GRAND TOTAL (৳):'.padEnd(36)} ${String('৳'+grand.toFixed(2)).padStart(11)}  ║</span>`);
+  print(`<span class="t-sep">╠══════════════════════════════════════════════════╣</span>`);
+  print(`<span class="t-ok">║       Thank you for dining with us!              ║</span>`);
+  print(`<span class="t-sep">╚══════════════════════════════════════════════════╝</span>`);
+  refreshBillPanel();
+  setPipeStep(5,'done','ok');
+  printLine();
+}
+
+/* ── show command ── */
+function printShow(){
+  if(orders.length===0){ print(`<span class="t-comment">  (No orders yet)</span>`); return; }
+  print(`<span class="t-comment">  ${'Item'.padEnd(18)} ${'Qty'.padStart(5)} ${'Unit'.padStart(10)} ${'Total'.padStart(12)}</span>`);
+  print(`<span class="t-sep">  ${'─'.repeat(48)}</span>`);
+  orders.forEach(o=>{
+    print(`<span class="t-input">  ${o.name.padEnd(18)} ${String(o.qty).padStart(5)} ${String('৳'+o.unitPrice).padStart(10)} ${String('৳'+o.subtotal.toFixed(2)).padStart(12)}</span>`);
+  });
+  const sub=orders.reduce((a,o)=>a+o.subtotal,0);
+  print(`<span class="t-sep">  ${'─'.repeat(48)}</span>`);
+  print(`<span class="t-ir">  Subtotal: ৳${sub.toFixed(2)}</span>`);
+  printLine();
+}
+
+/* ── menu in terminal ── */
+function printMenuInTerminal(){
+  print(`<span class="t-comment">┌─────────────────────────────────────┐</span>`);
+  print(`<span class="t-bill">│         RESTAURANT MENU             │</span>`);
+  print(`<span class="t-comment">├─────────────────────────────────────┤</span>`);
+  MENU.forEach(m=>{
+    const avl = m.avl ? '<span class="t-ok">●</span>' : '<span class="t-err">○</span>';
+    print(`<span class="t-comment">│ </span><span class="t-input">${m.name.padEnd(14)}</span><span class="t-bill"> ৳${String(m.price).padStart(5)}</span>  ${avl}<span class="t-comment"> │</span>`);
+  });
+  print(`<span class="t-comment">└─────────────────────────────────────┘</span>`);
+  printLine();
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ══════════════════════════════════════════
+   UI EVENTS
+══════════════════════════════════════════ */
+function runCommand(){
+  const inp = document.getElementById('cmdInput');
+  const val = inp.value.trim();
+  if(val){ processCommand(val); inp.value=''; }
+}
+document.getElementById('cmdInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter') runCommand();
+});
+
+function quickCmd(cmd){
+  document.getElementById('cmdInput').value=cmd;
+  switchMainTab('terminal');
+  runCommand();
+}
+
+function switchMainTab(name){
+  ['terminal','theory','menu','help'].forEach(t=>{
+    document.getElementById('view-'+t).style.display = t===name?'flex':'none';
+    document.getElementById('tab-'+t).classList.toggle('active',t===name);
+  });
+}
+
+function setTab(tabName, navId){
+  switchMainTab(tabName);
+  document.querySelectorAll('.menu-item').forEach(el=>el.classList.remove('active'));
+  const nav = document.getElementById(navId);
+  if(nav) nav.classList.add('active');
+}
+
+/* ── full menu table ── */
+function buildFullMenu(){
+  const tbl = document.getElementById('fullMenuTable');
+  MENU.forEach(m=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="name">${m.name}</td><td class="price">৳${m.price.toFixed(2)}</td><td class="avl">${m.avl?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>'}</td>`;
+    tbl.appendChild(tr);
+  });
+}
+buildFullMenu();
+
+/* ══════════════════════════════════════════
+   THEORY ENGINE
+══════════════════════════════════════════ */
+const THEORY = {
+  cfg:`<div class="th-head"># Context-Free Grammar (CFG)</div>
+<div>Grammar G = (V, T, P, S)</div><br>
+<div><span class="th-comment">Non-terminals V:</span></div>
+<div>  S, Cmd, Item, Qty</div><br>
+<div><span class="th-comment">Production rules P:</span></div>
+<div>  <span class="th-rule">S</span>    →  <span class="th-rule">Cmd</span></div>
+<div>  <span class="th-rule">Cmd</span>  →  <span class="th-term">'order'</span>  <span class="th-rule">Item</span> <span class="th-rule">Qty</span></div>
+<div>  <span class="th-rule">Cmd</span>  →  <span class="th-term">'cancel'</span> <span class="th-rule">Item</span> <span class="th-rule">Qty</span></div>
+<div>  <span class="th-rule">Cmd</span>  →  <span class="th-term">'show'</span></div>
+<div>  <span class="th-rule">Cmd</span>  →  <span class="th-term">'clear'</span></div>
+<div>  <span class="th-rule">Item</span> →  <span class="th-term">identifier</span></div>
+<div>  <span class="th-rule">Qty</span>  →  <span class="th-term">number</span></div><br>
+<div><span class="th-comment">This is a Type-3 Regular Grammar (Chomsky hierarchy).</span></div>`,
+
+  first:`<div class="th-head"># FIRST and FOLLOW Sets</div>
+<div><span class="th-comment">FIRST sets:</span></div>
+<div>  FIRST(<span class="th-rule">S</span>)    = <span class="th-set">{ order, cancel, show, clear }</span></div>
+<div>  FIRST(<span class="th-rule">Cmd</span>)  = <span class="th-set">{ order, cancel, show, clear }</span></div>
+<div>  FIRST(<span class="th-rule">Item</span>) = <span class="th-set">{ identifier }</span></div>
+<div>  FIRST(<span class="th-rule">Qty</span>)  = <span class="th-set">{ number }</span></div><br>
+<div><span class="th-comment">FOLLOW sets:</span></div>
+<div>  FOLLOW(<span class="th-rule">S</span>)    = <span class="th-set">{ $ }</span></div>
+<div>  FOLLOW(<span class="th-rule">Cmd</span>)  = <span class="th-set">{ $ }</span></div>
+<div>  FOLLOW(<span class="th-rule">Item</span>) = <span class="th-set">{ number }</span></div>
+<div>  FOLLOW(<span class="th-rule">Qty</span>)  = <span class="th-set">{ $ }</span></div><br>
+<div><span class="th-comment">LL(1) uses FIRST to select the production rule</span></div>
+<div><span class="th-comment">with a single token of lookahead.</span></div>`,
+
+  nfa:`<div class="th-head"># NFA → DFA (Lexer)</div>
+<div><span class="th-comment">NFA states:</span></div>
+<div>  q0 <span class="th-term">──[o]──▶</span> q1..q5  <span class="th-set">(ACCEPT: 'order')</span></div>
+<div>  q0 <span class="th-term">──[c]──▶</span> q6..q11 <span class="th-set">(ACCEPT: 'cancel')</span></div>
+<div>  q0 <span class="th-term">──[a-z]──▶</span> q12* <span class="th-set">(ACCEPT: IDENTIFIER)</span></div>
+<div>  q0 <span class="th-term">──[0-9]──▶</span> q13* <span class="th-set">(ACCEPT: NUMBER)</span></div><br>
+<div><span class="th-comment">DFA (subset construction result):</span></div>
+<div>  <span class="th-rule">State</span> │ <span class="th-term">Input</span>       │ <span class="th-set">Accepts</span></div>
+<div>  ──────┼─────────────┼──────────────</div>
+<div>  D0    │ keyword     │ <span class="th-set">TOK_KEYWORD</span></div>
+<div>  D0    │ [a-z]+      │ <span class="th-set">TOK_IDENTIFIER</span></div>
+<div>  D0    │ [0-9]+      │ <span class="th-set">TOK_NUMBER</span></div>
+<div>  D0    │ other       │ <span class="th-set">TOK_UNKNOWN</span></div><br>
+<div><span class="th-comment">Implemented in: lexer.c → classify()</span></div>`,
+
+  lr0:`<div class="th-head"># LR(0) Canonical Items & Parse Table</div>
+<div><span class="th-comment">Item Sets:</span></div>
+<div>  <span class="th-rule">I0:</span>  S' → .S</div>
+<div>        S  → .'order' Item Qty</div>
+<div>        S  → .'cancel' Item Qty</div>
+<div>        S  → .'show'   S  → .'clear'</div>
+<div>  <span class="th-rule">I1:</span>  S' → S.  <span class="th-set">(ACCEPT)</span></div>
+<div>  <span class="th-rule">I2:</span>  S  → 'order'. Item Qty</div>
+<div>  <span class="th-rule">I3:</span>  S  → 'order' Item. Qty</div>
+<div>  <span class="th-rule">I4:</span>  S  → 'order' Item Qty. <span class="th-set">(REDUCE r1)</span></div><br>
+<div><span class="th-comment">ACTION/GOTO table (condensed):</span></div>
+<div>  <span class="th-rule">State</span> │ <span class="th-term">order</span> │ <span class="th-term">cancel</span> │ <span class="th-term">id</span> │ <span class="th-term">num</span> │ <span class="th-set">$</span></div>
+<div>  ──────┼───────┼────────┼────┼─────┼───────────</div>
+<div>  0     │ s2    │ s5     │    │     │</div>
+<div>  1     │       │        │    │     │ <span class="th-set">ACCEPT</span></div>
+<div>  2     │       │        │ s3 │     │</div>
+<div>  3     │       │        │    │ s4  │</div>
+<div>  4     │       │        │    │     │ <span class="th-set">r1</span></div>`,
+
+  ll1:`<div class="th-head"># LL(1) Predictive Parse Table</div>
+<div><span class="th-comment">M[Non-terminal, Terminal]:</span></div>
+<div>  <span class="th-rule">Non-term</span> │ <span class="th-term">order</span>           │ <span class="th-term">cancel</span>          │ <span class="th-term">show</span></div>
+<div>  ─────────┼─────────────────┼─────────────────┼────────────</div>
+<div>  S        │ S→Cmd           │ S→Cmd           │ S→Cmd</div>
+<div>  Cmd      │ Cmd→order I Q   │ Cmd→cancel I Q  │ Cmd→show</div>
+<div>  Item     │ Item→identifier │ Item→identifier │ —</div>
+<div>  Qty      │ Qty→number      │ Qty→number      │ —</div><br>
+<div><span class="th-comment">Empty cells = syntax error (unexpected token)</span></div>
+<div><span class="th-comment">Implemented in: parser.c → parser_validate()</span></div>`,
+
+  ir:`<div class="th-head"># Intermediate Representation (IR)</div>
+<div><span class="th-comment">Three-address code notation:</span></div><br>
+<div>  <span class="th-rule">t1</span> = price × qty  <span class="th-comment">;; burger: 100 × 2 = 200</span></div>
+<div>  <span class="th-rule">t2</span> = price × qty  <span class="th-comment">;; pizza:  300 × 1 = 300</span></div>
+<div>  <span class="th-rule">subtotal</span> = t1 + t2  <span class="th-comment">;; = 500</span></div>
+<div>  <span class="th-rule">t3</span> = subtotal × 0.10 <span class="th-comment">;; discount (if ≥1000)</span></div>
+<div>  <span class="th-rule">after</span> = subtotal − t3</div>
+<div>  <span class="th-rule">t4</span> = after × 0.05  <span class="th-comment">;; VAT</span></div>
+<div>  <span class="th-rule">grand_total</span> = after + t4</div><br>
+<div><span class="th-comment">In the code: Session→orders[] IS the IR.</span></div>
+<div><span class="th-comment">ir.c → ir_apply() manages add/merge/cancel.</span></div>`
+};
+
+function showTheory(key){
+  document.getElementById('theoryBox').innerHTML=THEORY[key];
+}
+
+/* ── toast ── */
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+/* ── initial pipeline setup ── */
+setPipeStep(0,'done','loaded');
+
+/* ── welcome commands ── */
+setTimeout(()=>{
+  print(`<span class="t-comment">  Tip: click any Quick Command →  or type your own below.</span>`);
+  print(`<span class="t-comment">  Try 'bill' to generate a bill, or 'debug off' for clean output.</span>`);
+}, 300);
+</script>
+</body>
+</html>

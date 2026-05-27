@@ -1,0 +1,4 @@
+[2026-04-17  22:16:41]  orders=3  errors=1  subtotal=1880.00  discount=188.00  tax=84.60  total=1776.60
+[2026-04-17  22:20:52]  orders=2  errors=0  subtotal=980.00  discount=0.00  tax=49.00  total=1029.00
+[2026-04-17  23:35:37]  orders=2  errors=1  subtotal=1500.00  discount=150.00  tax=67.50  total=1417.50
+[2026-04-17  23:37:05]  orders=2  errors=1  subtotal=1500.00  discount=150.00  tax=67.50  total=1417.50
